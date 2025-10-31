@@ -1,31 +1,29 @@
 package it.damose.ui;
 
-import it.damose.data.StopsLoader;
 import it.damose.data.RouteLoader;
+import it.damose.data.StopsLoader;
 import it.damose.data.TripLoader;
-import it.damose.model.Stop;
 import it.damose.model.Route;
+import it.damose.model.Stop;
 import it.damose.model.Trip;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class MainWindow extends JFrame {
 
-    private final DefaultListModel<Stop> listModel = new DefaultListModel<>();
-    private final JList<Stop> resultsList = new JList<>(listModel);
+    private final DefaultListModel<Object> listModel = new DefaultListModel<>();
+    private final JList<Object> resultsList = new JList<>(listModel);
     private final JTextArea detailArea = new JTextArea();
     private final JTextField searchField = new JTextField();
 
-    private List<Stop> stops;
-    private List<Route> routes;
-    private List<Trip> trips;
-    private Map<String, Route> routeMap = new HashMap<>();
+    private Map<String, Stop> stops;
+    private Map<String, Route> routes;
+    private Map<String, Trip> trips;
 
     public MainWindow() {
         super("Rome Transit Tracker - Damose");
@@ -38,90 +36,104 @@ public class MainWindow extends JFrame {
     }
 
     private void initLayout() {
-        // Top panel con barra di ricerca
         JPanel top = new JPanel(new BorderLayout(5,5));
         top.add(searchField, BorderLayout.CENTER);
         JButton searchBtn = new JButton("Cerca");
         top.add(searchBtn, BorderLayout.EAST);
         top.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
-        add(top, BorderLayout.NORTH);
 
-        // Lista e dettaglio fermata
+        resultsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane listPane = new JScrollPane(resultsList);
+
         detailArea.setEditable(false);
         detailArea.setLineWrap(true);
         detailArea.setWrapStyleWord(true);
-        detailArea.setBorder(BorderFactory.createTitledBorder("Dettaglio fermata"));
+        detailArea.setBorder(BorderFactory.createTitledBorder("Dettaglio"));
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, listPane, detailArea);
         split.setDividerLocation(400);
+
+        add(top, BorderLayout.NORTH);
         add(split, BorderLayout.CENTER);
 
-        // Azioni ricerca
         ActionListener doSearch = e -> doSearch();
         searchBtn.addActionListener(doSearch);
         searchField.addActionListener(doSearch);
 
-        // Selezione fermata
         resultsList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
-                Stop s = resultsList.getSelectedValue();
-                if (s != null) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append(s.toString()).append("\nLinee:");
-                    for (String routeId : s.getRouteIds()) {
-                        Route r = routeMap.get(routeId);
-                        if (r != null) sb.append("\n- ").append(r.toString());
+                Object obj = resultsList.getSelectedValue();
+                if (obj != null) {
+                    if (obj instanceof Stop s) {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Fermata: ").append(s.getName()).append(" (").append(s.getId()).append(")\n");
+                        sb.append("Coordinate: ").append(s.getLat()).append(", ").append(s.getLon()).append("\n");
+                        sb.append("Linee:\n");
+                        for (Route r : s.getRoutes()) {
+                            sb.append(" - ").append(r.getShortName()).append(" ").append(r.getLongName()).append("\n");
+                        }
+                        detailArea.setText(sb.toString());
+                    } else if (obj instanceof Route r) {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Linea: ").append(r.getShortName()).append(" - ").append(r.getLongName()).append("\n");
+                        sb.append("Numero corse: ").append(r.getTrips().size()).append("\n");
+                        detailArea.setText(sb.toString());
                     }
-                    detailArea.setText(sb.toString());
                 }
             }
         });
     }
 
     private void loadData() {
-        // Ferme
-        stops = StopsLoader.loadStops();
-        if (stops.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "ERRORE: nessuna fermata caricata!");
-        } else {
-            System.out.println("Totale fermate caricate: " + stops.size());
-            for (Stop s : stops) listModel.addElement(s);
-        }
+        String zipPath = "src/main/resources/data/static_gtfs.zip";
 
-        // Linee
-        routes = RouteLoader.loadRoutes();
-        for (Route r : routes) routeMap.put(r.getId(), r);
+        stops = StopsLoader.loadStopsFromZip(zipPath);
+        System.out.println("Totale fermate caricate: " + stops.size());
+
+        routes = RouteLoader.loadRoutesFromZip(zipPath);
         System.out.println("Totale linee caricate: " + routes.size());
 
-        // Corse
-        trips = TripLoader.loadTrips();
+        trips = TripLoader.loadTripToRouteFromZip(zipPath, routes);
         System.out.println("Totale corse caricate: " + trips.size());
 
-        // Associa routeId alle fermate
-        Map<String, Stop> stopMap = new HashMap<>();
-        for (Stop s : stops) stopMap.put(s.getId(), s);
-
-        for (Trip t : trips) {
+        // collega le linee alle fermate usando stop_times.txt
+        for (Trip t : trips.values()) {
             for (String stopId : t.getStopIds()) {
-                Stop s = stopMap.get(stopId);
-                if (s != null) s.addRoute(t.getRouteId());
+                Stop stop = stops.get(stopId);
+                Route route = routes.get(t.getRouteId());
+                if (stop != null && route != null) {
+                    stop.addRoute(route);
+                }
             }
         }
+
+        // carica tutto nella lista di default
+        listModel.clear();
+        stops.values().forEach(listModel::addElement);
+        routes.values().forEach(listModel::addElement);
     }
 
     private void doSearch() {
         String q = searchField.getText().trim().toLowerCase();
         listModel.clear();
         if (q.isEmpty()) {
-            for (Stop s : stops) listModel.addElement(s);
+            stops.values().forEach(listModel::addElement);
+            routes.values().forEach(listModel::addElement);
             return;
         }
-        boolean isNumeric = q.matches("\\d+");
-        for (Stop s : stops) {
-            if (isNumeric && s.getId().contains(q)) listModel.addElement(s);
-            else if (!isNumeric && s.getName().toLowerCase().contains(q)) listModel.addElement(s);
-        }
-        System.out.println("Risultati trovati: " + listModel.getSize());
+
+        // Prima cerco per numero linea
+        List<Route> matchedRoutes = routes.values().stream()
+                .filter(r -> r.getShortName().toLowerCase().contains(q))
+                .collect(Collectors.toList());
+        matchedRoutes.forEach(listModel::addElement);
+
+        // Poi cerco per id fermata o nome
+        List<Stop> matchedStops = stops.values().stream()
+                .filter(s -> s.getId().toLowerCase().contains(q) || s.getName().toLowerCase().contains(q))
+                .collect(Collectors.toList());
+        matchedStops.forEach(listModel::addElement);
+
+        System.out.println("Risultati trovati: " + (matchedRoutes.size() + matchedStops.size()));
     }
 }

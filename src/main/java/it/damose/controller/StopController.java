@@ -1,66 +1,98 @@
 package it.damose.controller;
 
-import it.damose.data.StopsLoader;
 import it.damose.data.RouteLoader;
+import it.damose.data.StopsLoader;
 import it.damose.data.TripLoader;
-import it.damose.model.Stop;
 import it.damose.model.Route;
+import it.damose.model.Stop;
 import it.damose.model.Trip;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 public class StopController {
 
-    private List<Stop> stops;
-    private List<Route> routes;
-    private List<Trip> trips;
-    private Map<String, Route> routeMap = new HashMap<>();
+    private Map<String, Stop> stops;
+    private Map<String, Route> routes;
+    private Map<String, Trip> trips;
+
+    private final String ZIP_PATH = "src/main/resources/data/static_gtfs.zip";
 
     public StopController() {
-        loadData();
-    }
-
-    private void loadData() {
         // Carica fermate
-        stops = StopsLoader.loadStops();
-        System.out.println("Totale fermate caricate: " + stops.size());
+        stops = StopsLoader.loadStopsFromZip(ZIP_PATH);
+        if (stops.isEmpty()) {
+            System.err.println("ERRORE: nessuna fermata caricata!");
+        } else {
+            System.out.println("Totale fermate caricate: " + stops.size());
+        }
 
         // Carica linee
-        routes = RouteLoader.loadRoutes();
+        routes = RouteLoader.loadRoutesFromZip(ZIP_PATH);
         System.out.println("Totale linee caricate: " + routes.size());
-        for (Route r : routes) routeMap.put(r.getId(), r);
 
-        // Carica corse
-        trips = TripLoader.loadTrips();
+        // Carica corse e collega alle linee
+        trips = TripLoader.loadTripToRouteFromZip(ZIP_PATH, routes);
         System.out.println("Totale corse caricate: " + trips.size());
 
-        // Associa routeId alle fermate
-        Map<String, Stop> stopMap = new HashMap<>();
-        for (Stop s : stops) stopMap.put(s.getId(), s);
+        // Collega fermate alle linee
+        linkStopsToRoutes();
+    }
 
-        for (Trip t : trips) {
-            for (String stopId : t.getStopIds()) {
-                Stop s = stopMap.get(stopId);
-                if (s != null) s.addRoute(t.getRouteId());
+    /**
+     * Collega ogni fermata alle linee che la servono
+     */
+    private void linkStopsToRoutes() {
+        for (Route route : routes.values()) {
+            for (Trip trip : route.getTrips()) {
+                for (String stopId : trip.getStopIds()) {
+                    Stop stop = stops.get(stopId);
+                    if (stop != null) {
+                        stop.addRoute(route); // ogni Stop deve avere metodo addRoute(Route)
+                    }
+                }
             }
         }
     }
 
-    public List<Stop> getStops() {
-        return stops;
+    /**
+     * Ritorna tutte le fermate
+     */
+    public List<Stop> getAllStops() {
+        return List.copyOf(stops.values());
     }
 
-    public List<Route> getRoutes() {
-        return routes;
+    /**
+     * Ritorna tutte le linee
+     */
+    public List<Route> getAllRoutes() {
+        return List.copyOf(routes.values());
     }
 
-    public List<Trip> getTrips() {
-        return trips;
+    /**
+     * Cerca fermata per nome o ID
+     */
+    public Stop searchStop(String query) {
+        query = query.trim().toLowerCase();
+        for (Stop stop : stops.values()) {
+            if (stop.getId().equals(query) || stop.getName().toLowerCase().contains(query)) {
+                return stop;
+            }
+        }
+        return null;
     }
 
-    public Route getRouteById(String routeId) {
-        return routeMap.get(routeId);
+    /**
+     * Cerca linea per nome o codice
+     */
+    public Route searchRoute(String query) {
+        query = query.trim().toLowerCase();
+        for (Route route : routes.values()) {
+            if (route.getRouteId().equals(query) || route.getShortName().toLowerCase().contains(query)) {
+                return route;
+            }
+        }
+        return null;
     }
 }

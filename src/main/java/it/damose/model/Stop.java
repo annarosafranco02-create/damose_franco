@@ -1,14 +1,15 @@
 package it.damose.model;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Stop {
-    private final String id;
-    private final String name;
-    private final double lat;
-    private final double lon;
-    private final Set<String> routeIds = new HashSet<>();
+
+    private String id;
+    private String name;
+    private double lat;
+    private double lon;
+    private List<Route> routes = new ArrayList<>();
 
     public Stop(String id, String name, double lat, double lon) {
         this.id = id;
@@ -21,9 +22,11 @@ public class Stop {
     public String getName() { return name; }
     public double getLat() { return lat; }
     public double getLon() { return lon; }
+    public List<Route> getRoutes() { return routes; }
 
-    public void addRoute(String routeId) { routeIds.add(routeId); }
-    public Set<String> getRouteIds() { return routeIds; }
+    public void addRoute(Route route) {
+        if (!routes.contains(route)) routes.add(route);
+    }
 
     @Override
     public String toString() {

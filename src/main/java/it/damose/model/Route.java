@@ -1,19 +1,29 @@
 package it.damose.model;
 
-public class Route {
-    private final String id;
-    private final String shortName;
-    private final String longName;
+import java.util.ArrayList;
+import java.util.List;
 
-    public Route(String id, String shortName, String longName) {
-        this.id = id;
+public class Route {
+
+    private String routeId;
+    private String shortName;
+    private String longName;
+    private List<Trip> trips = new ArrayList<>();
+
+    public Route(String routeId, String shortName, String longName) {
+        this.routeId = routeId;
         this.shortName = shortName;
         this.longName = longName;
     }
 
-    public String getId() { return id; }
+    public String getRouteId() { return routeId; }
     public String getShortName() { return shortName; }
     public String getLongName() { return longName; }
+    public List<Trip> getTrips() { return trips; }
+
+    public void addTrip(Trip trip) {
+        if (!trips.contains(trip)) trips.add(trip);
+    }
 
     @Override
     public String toString() {

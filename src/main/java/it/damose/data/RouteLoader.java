@@ -2,48 +2,38 @@ package it.damose.data;
 
 import it.damose.model.Route;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class RouteLoader {
 
-    private static final String ZIP_PATH = "src/main/resources/data/static_gtfs.zip";
+    public static Map<String, Route> loadRoutesFromZip(String zipPath) {
+        Map<String, Route> routes = new HashMap<>();
 
-    public static List<Route> loadRoutes() {
-        List<Route> routes = new ArrayList<>();
-        try (ZipFile zip = new ZipFile(ZIP_PATH)) {
+        try (ZipFile zip = new ZipFile(zipPath)) {
+            ZipEntry entry = zip.getEntry("rome_static_gtfs/routes.txt");
+            if (entry == null) return routes;
 
-            // Cerca routes.txt in qualsiasi cartella interna
-            ZipEntry routesEntry = null;
-            Enumeration<? extends ZipEntry> entries = zip.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry e = entries.nextElement();
-                if (e.getName().endsWith("routes.txt")) {
-                    routesEntry = e;
-                    break;
-                }
-            }
+            try (InputStream is = zip.getInputStream(entry);
+                 BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
 
-            if (routesEntry == null) {
-                System.err.println("ERRORE: routes.txt non trovato nello zip!");
-                return routes;
-            }
-
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(zip.getInputStream(routesEntry)))) {
-                String line = br.readLine(); // salta intestazione
+                String line;
+                br.readLine(); // salta header
                 while ((line = br.readLine()) != null) {
                     String[] parts = line.split(",");
-                    if (parts.length < 3) continue;
-                    String id = parts[0].trim();
-                    String shortName = parts[2].replace("\"", "").trim();
-                    String longName = parts.length > 3 ? parts[3].replace("\"", "").trim() : "";
-                    routes.add(new Route(id, shortName, longName));
+                    if (parts.length < 4) continue;
+                    String id = parts[0];
+                    String shortName = parts[2].replace("\"", "");
+                    String longName = parts[3].replace("\"", "");
+                    routes.put(id, new Route(id, shortName, longName));
                 }
             }
-
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 

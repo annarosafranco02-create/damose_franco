@@ -2,49 +2,39 @@ package it.damose.data;
 
 import it.damose.model.Stop;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class StopsLoader {
 
-    private static final String ZIP_PATH = "src/main/resources/data/static_gtfs.zip";
+    public static Map<String, Stop> loadStopsFromZip(String zipPath) {
+        Map<String, Stop> stops = new HashMap<>();
 
-    public static List<Stop> loadStops() {
-        List<Stop> stops = new ArrayList<>();
-        try (ZipFile zip = new ZipFile(ZIP_PATH)) {
+        try (ZipFile zip = new ZipFile(zipPath)) {
+            ZipEntry entry = zip.getEntry("rome_static_gtfs/stops.txt");
+            if (entry == null) return stops;
 
-            // Cerca stops.txt in qualsiasi cartella interna
-            ZipEntry stopsEntry = null;
-            Enumeration<? extends ZipEntry> entries = zip.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry e = entries.nextElement();
-                if (e.getName().endsWith("stops.txt")) {
-                    stopsEntry = e;
-                    break;
-                }
-            }
+            try (InputStream is = zip.getInputStream(entry);
+                 BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
 
-            if (stopsEntry == null) {
-                System.err.println("ERRORE: stops.txt non trovato nello zip!");
-                return stops;
-            }
-
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(zip.getInputStream(stopsEntry)))) {
-                String line = br.readLine(); // salta intestazione
+                String line;
+                br.readLine(); // salta header
                 while ((line = br.readLine()) != null) {
                     String[] parts = line.split(",");
-                    if (parts.length < 3) continue;
-                    String id = parts[0].trim();
-                    String name = parts[2].replace("\"", "").trim();
-                    double lat = parts.length > 4 && !parts[4].isEmpty() ? Double.parseDouble(parts[4]) : 0;
-                    double lon = parts.length > 5 && !parts[5].isEmpty() ? Double.parseDouble(parts[5]) : 0;
-                    stops.add(new Stop(id, name, lat, lon));
+                    if (parts.length < 5) continue;
+                    String id = parts[0];
+                    String name = parts[2].replace("\"", "");
+                    double lat = Double.parseDouble(parts[4]);
+                    double lon = Double.parseDouble(parts[5]);
+                    stops.put(id, new Stop(id, name, lat, lon));
                 }
             }
-
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
