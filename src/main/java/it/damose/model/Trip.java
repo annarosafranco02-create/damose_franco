@@ -1,21 +1,19 @@
 package it.damose.model;
 
+import java.util.List;
+
 public class Trip {
-    private String id;
-    private String routeId;
-    private String serviceId;
+    private final String routeId;
+    private final String tripId;
+    private final List<String> stopIds;
 
-    public Trip(String id, String routeId, String serviceId) {
-        this.id = id;
+    public Trip(String routeId, String tripId, List<String> stopIds) {
         this.routeId = routeId;
-        this.serviceId = serviceId;
+        this.tripId = tripId;
+        this.stopIds = stopIds;
     }
 
-    public String getId() { return id; }
     public String getRouteId() { return routeId; }
-    public String getServiceId() { return serviceId; }
-
-    public String getTripId() {
-        return id + "-" + routeId + "-" + serviceId;
-    }
+    public String getTripId() { return tripId; }
+    public List<String> getStopIds() { return stopIds; }
 }

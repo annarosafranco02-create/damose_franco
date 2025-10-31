@@ -1,22 +1,22 @@
 package it.damose.model;
 
 public class Route {
-    private String id;
-    private String shortName;
-    private String type;
+    private final String id;
+    private final String shortName;
+    private final String longName;
 
-    public Route(String id, String shortName, String type) {
+    public Route(String id, String shortName, String longName) {
         this.id = id;
         this.shortName = shortName;
-        this.type = type;
+        this.longName = longName;
     }
 
     public String getId() { return id; }
     public String getShortName() { return shortName; }
-    public String getType() { return type; }
+    public String getLongName() { return longName; }
 
     @Override
     public String toString() {
-        return shortName + " (" + type + ")";
+        return shortName + " - " + longName;
     }
 }

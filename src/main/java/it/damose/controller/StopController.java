@@ -1,59 +1,66 @@
 package it.damose.controller;
 
-import it.damose.data.*;
-import it.damose.model.*;
+import it.damose.data.StopsLoader;
+import it.damose.data.RouteLoader;
+import it.damose.data.TripLoader;
+import it.damose.model.Stop;
+import it.damose.model.Route;
+import it.damose.model.Trip;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 public class StopController {
+
     private List<Stop> stops;
     private List<Route> routes;
     private List<Trip> trips;
-    private List<StopTime> stopTimes;
+    private Map<String, Route> routeMap = new HashMap<>();
 
     public StopController() {
-        stops = StopsLoader.loadStops();
-        RouteLoader RoutesLoader;
-        routes = RouteLoader.loadRoutes();
-        trips = TripLoader.loadTrips();
-        stopTimes = StopTimesLoader.loadStopTimes();
+        loadData();
     }
 
-    public List<Stop> getAllStops() {
+    private void loadData() {
+        // Carica fermate
+        stops = StopsLoader.loadStops();
+        System.out.println("Totale fermate caricate: " + stops.size());
+
+        // Carica linee
+        routes = RouteLoader.loadRoutes();
+        System.out.println("Totale linee caricate: " + routes.size());
+        for (Route r : routes) routeMap.put(r.getId(), r);
+
+        // Carica corse
+        trips = TripLoader.loadTrips();
+        System.out.println("Totale corse caricate: " + trips.size());
+
+        // Associa routeId alle fermate
+        Map<String, Stop> stopMap = new HashMap<>();
+        for (Stop s : stops) stopMap.put(s.getId(), s);
+
+        for (Trip t : trips) {
+            for (String stopId : t.getStopIds()) {
+                Stop s = stopMap.get(stopId);
+                if (s != null) s.addRoute(t.getRouteId());
+            }
+        }
+    }
+
+    public List<Stop> getStops() {
         return stops;
     }
 
-    /** Trova le linee che passano da una fermata **/
-    public List<Route> getRoutesByStop(String stopId) {
-        // Trova i trip_id che passano da quella fermata
-        Set<String> tripIds = stopTimes.stream()
-                .filter(st -> st.getStopId().equals(stopId))
-                .map(StopTime::getTripId)
-                .collect(Collectors.toSet());
-
-        // Trova i route_id corrispondenti a quei trip_id
-        Set<String> routeIds = trips.stream()
-                .filter(t -> tripIds.contains(t.getTripId()))
-                .map(Trip::getRouteId)
-                .collect(Collectors.toSet());
-
-        // Restituisce le Route corrispondenti
-        return routes.stream()
-                .filter(r -> routeIds.contains(r.getId()))
-                .collect(Collectors.toList());
+    public List<Route> getRoutes() {
+        return routes;
     }
 
-    /** Trova gli orari di arrivo in una fermata **/
-    public List<String> getArrivalTimesByStop(String stopId) {
-        return stopTimes.stream()
-                .filter(st -> st.getStopId().equals(stopId))
-                .map(StopTime::getArrivalTime)
-                .limit(10)
-                .collect(Collectors.toList());
+    public List<Trip> getTrips() {
+        return trips;
     }
 
-    public List<Stop> searchStops(String query) {
-        return stops.stream().filter(stop -> stop.getName().toLowerCase().contains(query.toLowerCase())).collect(Collectors.toList());
+    public Route getRouteById(String routeId) {
+        return routeMap.get(routeId);
     }
 }

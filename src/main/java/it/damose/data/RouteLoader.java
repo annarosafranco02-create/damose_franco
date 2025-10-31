@@ -2,42 +2,51 @@ package it.damose.data;
 
 import it.damose.model.Route;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.util.*;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 
 public class RouteLoader {
 
+    private static final String ZIP_PATH = "src/main/resources/data/static_gtfs.zip";
+
     public static List<Route> loadRoutes() {
         List<Route> routes = new ArrayList<>();
-        try {
-            InputStream is = RouteLoader.class.getResourceAsStream("/data/static_gtfs.zip");
-            if (is == null) return routes;
+        try (ZipFile zip = new ZipFile(ZIP_PATH)) {
 
-            ZipInputStream zis = new ZipInputStream(is);
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (entry.getName().equals("routes.txt")) {
-                    BufferedReader br = new BufferedReader(new InputStreamReader(zis));
-                    String line = br.readLine(); // header
-                    while ((line = br.readLine()) != null) {
-                        String[] parts = line.split(",");
-                        if (parts.length >= 4) {
-                            routes.add(new Route(parts[0], parts[2], parts[3]));
-                        }
-                    }
+            // Cerca routes.txt in qualsiasi cartella interna
+            ZipEntry routesEntry = null;
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                if (e.getName().endsWith("routes.txt")) {
+                    routesEntry = e;
                     break;
                 }
             }
-            zis.close();
-        } catch (Exception e) {
+
+            if (routesEntry == null) {
+                System.err.println("ERRORE: routes.txt non trovato nello zip!");
+                return routes;
+            }
+
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(zip.getInputStream(routesEntry)))) {
+                String line = br.readLine(); // salta intestazione
+                while ((line = br.readLine()) != null) {
+                    String[] parts = line.split(",");
+                    if (parts.length < 3) continue;
+                    String id = parts[0].trim();
+                    String shortName = parts[2].replace("\"", "").trim();
+                    String longName = parts.length > 3 ? parts[3].replace("\"", "").trim() : "";
+                    routes.add(new Route(id, shortName, longName));
+                }
+            }
+
+        } catch (IOException e) {
             e.printStackTrace();
         }
+
         return routes;
     }
 }
-

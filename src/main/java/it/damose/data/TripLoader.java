@@ -2,41 +2,58 @@ package it.damose.data;
 
 import it.damose.model.Trip;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.util.*;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 
 public class TripLoader {
 
+    private static final String ZIP_PATH = "src/main/resources/data/static_gtfs.zip";
+
     public static List<Trip> loadTrips() {
         List<Trip> trips = new ArrayList<>();
-        try {
-            InputStream is = TripLoader.class.getResourceAsStream("/data/static_gtfs.zip");
-            if (is == null) return trips;
 
-            ZipInputStream zis = new ZipInputStream(is);
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (entry.getName().equals("trips.txt")) {
-                    BufferedReader br = new BufferedReader(new InputStreamReader(zis));
-                    String line = br.readLine(); // header
-                    while ((line = br.readLine()) != null) {
-                        String[] parts = line.split(",");
-                        if (parts.length >= 3) {
-                            trips.add(new Trip(parts[2], parts[0], parts[1]));
-                        }
-                    }
+        try (ZipFile zip = new ZipFile(ZIP_PATH)) {
+
+            // Cerca trips.txt dentro lo zip, indipendentemente dalla cartella interna
+            ZipEntry tripsEntry = null;
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                if (e.getName().endsWith("trips.txt")) {
+                    tripsEntry = e;
                     break;
                 }
             }
-            zis.close();
-        } catch (Exception e) {
+
+            if (tripsEntry == null) {
+                System.err.println("ERRORE: trips.txt non trovato nello zip!");
+                return trips;
+            }
+
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(zip.getInputStream(tripsEntry)))) {
+                String line = br.readLine(); // salta intestazione
+
+                while ((line = br.readLine()) != null) {
+                    String[] parts = line.split(",");
+
+                    if (parts.length < 3) continue; // riga malformata
+
+                    String routeId = parts[0].trim();
+                    String tripId = parts[2].trim();
+
+                    // Crea trip con liste vuote per stopIds e orari
+                    Trip trip = new Trip(routeId, tripId, new ArrayList<>());
+                    trips.add(trip);
+                }
+            }
+
+        } catch (IOException e) {
             e.printStackTrace();
         }
+
+        System.out.println("TripLoader: totale corse caricate = " + trips.size());
         return trips;
     }
 }

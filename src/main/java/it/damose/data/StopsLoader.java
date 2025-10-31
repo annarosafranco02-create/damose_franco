@@ -5,42 +5,46 @@ import it.damose.model.Stop;
 import java.io.*;
 import java.util.*;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 
 public class StopsLoader {
 
+    private static final String ZIP_PATH = "src/main/resources/data/static_gtfs.zip";
+
     public static List<Stop> loadStops() {
         List<Stop> stops = new ArrayList<>();
+        try (ZipFile zip = new ZipFile(ZIP_PATH)) {
 
-        try (InputStream zipStream = StopsLoader.class.getResourceAsStream("/data/static_gtfs.zip")) {
-            if (zipStream == null) {
-                System.err.println("❌ Impossibile trovare static_gtfs.zip nelle risorse.");
-                return stops;
-            }
-
-            ZipInputStream zis = new ZipInputStream(zipStream);
-            ZipEntry entry;
-
-            while ((entry = zis.getNextEntry()) != null) {
-                if (entry.getName().equalsIgnoreCase("stops.txt")) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(zis));
-                    reader.readLine(); // salta header
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        String[] parts = line.split(",");
-                        if (parts.length >= 4) {
-                            String id = parts[0];
-                            String name = parts[2];
-                            double lat = Double.parseDouble(parts[3]);
-                            double lon = Double.parseDouble(parts[4]);
-                            stops.add(new Stop(id, name, lat, lon));
-                        }
-                    }
+            // Cerca stops.txt in qualsiasi cartella interna
+            ZipEntry stopsEntry = null;
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                if (e.getName().endsWith("stops.txt")) {
+                    stopsEntry = e;
                     break;
                 }
             }
-            zis.close();
-        } catch (Exception e) {
+
+            if (stopsEntry == null) {
+                System.err.println("ERRORE: stops.txt non trovato nello zip!");
+                return stops;
+            }
+
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(zip.getInputStream(stopsEntry)))) {
+                String line = br.readLine(); // salta intestazione
+                while ((line = br.readLine()) != null) {
+                    String[] parts = line.split(",");
+                    if (parts.length < 3) continue;
+                    String id = parts[0].trim();
+                    String name = parts[2].replace("\"", "").trim();
+                    double lat = parts.length > 4 && !parts[4].isEmpty() ? Double.parseDouble(parts[4]) : 0;
+                    double lon = parts.length > 5 && !parts[5].isEmpty() ? Double.parseDouble(parts[5]) : 0;
+                    stops.add(new Stop(id, name, lat, lon));
+                }
+            }
+
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
